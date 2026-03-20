@@ -618,7 +618,7 @@ def list_bar_sales(
 
 
 
-@router.get("/item-summary", response_model=dict)  # using dict so structure can be like restaurant summary
+@router.get("/item-summary", response_model=dict)
 def get_bar_item_summary(
     bar_id: Optional[int] = Query(None, description="Filter by Bar ID"),
     start_date: Optional[date] = Query(None, description="Start date (YYYY-MM-DD)"),
@@ -627,22 +627,33 @@ def get_bar_item_summary(
     current_user: user_schemas.UserDisplaySchema = Depends(role_required(["bar"]))
 ):
     try:
+        # =============================== VALIDATION ===============================
+        if start_date and end_date and start_date > end_date:
+            raise HTTPException(status_code=400, detail="Start date cannot be after end date")
+
         # =============================== GET SALES ===============================
-        sales_query = db.query(bar_models.BarSale).join(bar_models.BarSale.sale_items)
+        sales_query = db.query(bar_models.BarSale)
+
         if bar_id:
             sales_query = sales_query.filter(bar_models.BarSale.bar_id == bar_id)
+
         if start_date:
-            sales_query = sales_query.filter(func.date(bar_models.BarSale.sale_date) >= start_date)
+            sales_query = sales_query.filter(
+                func.date(bar_models.BarSale.sale_date) >= start_date
+            )
+
         if end_date:
-            sales_query = sales_query.filter(func.date(bar_models.BarSale.sale_date) <= end_date)
+            sales_query = sales_query.filter(
+                func.date(bar_models.BarSale.sale_date) <= end_date
+            )
 
         sales = sales_query.all()
 
-        # =============================== ITEMS AGGREGATION ===============================
+        # =============================== ITEMS ===============================
         item_summary = {}
         grand_total = 0.0
 
-        # =============================== PAYMENT AGGREGATION ===============================
+        # =============================== PAYMENT SUMMARY ===============================
         payment_summary = {
             "total_sales": 0.0,
             "total_paid": 0.0,
@@ -653,13 +664,17 @@ def get_bar_item_summary(
             "banks": {}
         }
 
+        # =============================== LOOP ===============================
         for sale in sales:
-            # ITEMS
+            sale_total = float(sale.total_amount or 0)
+
+            # ---------------- ITEMS ----------------
             for sale_item in sale.sale_items:
                 name = sale_item.bar_inventory.item.name
                 price = float(sale_item.selling_price or 0)
-                qty = sale_item.quantity
-                amount = float(sale_item.total_amount or 0)
+                qty = int(sale_item.quantity or 0)
+                amount = float(sale_item.total_amount or (qty * price))
+
                 key = f"{name}_{price}"
 
                 if key not in item_summary:
@@ -672,19 +687,22 @@ def get_bar_item_summary(
 
                 item_summary[key]["qty"] += qty
                 item_summary[key]["amount"] += amount
+
                 grand_total += amount
 
-            # PAYMENTS
+            # ---------------- PAYMENTS ----------------
+            total_paid_for_sale = 0.0
+
             for payment in sale.payments:
                 if payment.status != "active":
                     continue
-                amount_paid = float(payment.amount_paid or 0)
-                payment_summary["total_paid"] += amount_paid
-                payment_summary["total_sales"] += float(sale.total_amount or 0)
-                payment_summary["total_due"] += float(sale.total_amount or 0) - amount_paid
 
-                # Mode totals
-                mode = payment.payment_method.upper()
+                amount_paid = float(payment.amount_paid or 0)
+                total_paid_for_sale += amount_paid
+
+                mode = (payment.payment_method or "").upper()
+
+                # Payment mode totals
                 if mode == "CASH":
                     payment_summary["total_cash"] += amount_paid
                 elif mode == "POS":
@@ -696,18 +714,25 @@ def get_bar_item_summary(
                 bank = (payment.bank or "").upper().strip()
                 if bank:
                     if bank not in payment_summary["banks"]:
-                        payment_summary["banks"][bank] = {"pos": 0, "transfer": 0}
+                        payment_summary["banks"][bank] = {"pos": 0.0, "transfer": 0.0}
+
                     if mode == "POS":
                         payment_summary["banks"][bank]["pos"] += amount_paid
                     elif mode == "TRANSFER":
                         payment_summary["banks"][bank]["transfer"] += amount_paid
 
+            # ✅ IMPORTANT: ADD ONCE PER SALE (FIXES YOUR BUG)
+            payment_summary["total_sales"] += sale_total
+            payment_summary["total_paid"] += total_paid_for_sale
+            payment_summary["total_due"] += sale_total - total_paid_for_sale
+
+        # =============================== FORMAT RESPONSE ===============================
         items = list(item_summary.values())
 
         return {
             "items": items,
             "items_summary": {
-                "grand_total": grand_total,
+                "grand_total": float(grand_total),
                 "total_items": len(items)
             },
             "payment_summary": payment_summary
@@ -720,7 +745,7 @@ def get_bar_item_summary(
 
 
 
-@router.get("/unpaid_sales", response_model=bar_schemas.BarSaleListResponse)
+@router.get("/unpaid_sales", response_model=dict)
 def list_unpaid_sales(
     bar_id: Optional[int] = None,
     start_date: Optional[date] = Query(None),
@@ -750,10 +775,9 @@ def list_unpaid_sales(
     sales = query.all()
 
     results = []
-    total_sales_amount = 0.0
+    total_due_all = 0.0
 
     for sale in sales:
-        # ✅ Calculate total paid for this sale
         total_paid = (
             db.query(func.coalesce(func.sum(barpayment_models.BarPayment.amount_paid), 0))
             .filter(
@@ -763,54 +787,32 @@ def list_unpaid_sales(
             .scalar()
         )
 
-        if total_paid >= sale.total_amount:
-            # fully paid → skip
+        total_amount = float(sale.total_amount or 0)
+        balance = total_amount - float(total_paid or 0)
+
+        if balance <= 0:
             continue
 
-        sale_items = []
-        sale_total = 0.0
-
-        for s_item in sale.sale_items:
-            inv = s_item.bar_inventory
-            store_item = inv.item if inv else None
-            item_name = store_item.name if store_item else "Unknown"
-            item_id = inv.item_id if inv else None
-            selling_price = float(s_item.selling_price or 0.0)
-
-            sale_items.append({
-                "item_id": item_id,
-                "item_name": item_name,
-                "quantity": int(s_item.quantity or 0),
-                "selling_price": selling_price,
-                "total_amount": float(s_item.total_amount or 0.0),
-            })
-
-            sale_total += float(s_item.total_amount or 0.0)
-
-        # determine payment status
-        if total_paid == 0:
-            status = "unpaid"
-        else:
-            status = "part payment"
+        status = "unpaid" if total_paid == 0 else "part payment"
 
         results.append({
-            "id": sale.id,
-            "sale_date": sale.sale_date,
-            "bar_id": sale.bar_id,
+            "bar_sale_id": sale.id,  # ✅ FIXED
+            "sale_date": sale.sale_date.isoformat() if sale.sale_date else None,
+            "sale_amount": total_amount,  # ✅ FIXED
+            "amount_paid": float(total_paid or 0),  # ✅ NEW
+            "balance_due": balance,  # ✅ NEW
+            "status": status,
             "bar_name": sale.bar.name if sale.bar else "",
-            "created_by": sale.created_by_user.username if sale.created_by_user else "",
-            "status": status,  # override here
-            "total_amount": sale_total,
-            "sale_items": sale_items,
         })
 
-        total_sales_amount += sale_total
+        total_due_all += balance
 
     return {
         "total_entries": len(results),
-        "total_sales_amount": total_sales_amount,
-        "sales": results,
+        "total_due": total_due_all,
+        "results": results
     }
+
 
 from sqlalchemy import func
 from sqlalchemy.orm import joinedload

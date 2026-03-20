@@ -187,6 +187,7 @@ const RestaurantPayment = () => {
           <thead>
             <tr>
               <th>Sale ID</th>
+              <th>Date</th>
               <th>Guest Name</th>
               <th>Total</th>
               <th>Paid</th>
@@ -198,6 +199,7 @@ const RestaurantPayment = () => {
             {sales.map((sale) => (
               <tr key={sale.id}>
                 <td>{sale.id}</td>
+                <td>{sale.created_at}</td>
                 <td>{sale.guest_name}</td>
                 <td>₦{Number(sale.total_amount).toLocaleString()}</td>
                 <td>₦{Number(sale.amount_paid).toLocaleString()}</td>
