@@ -1,0 +1,213 @@
+/* Container holds sidebar and main content side by side */
+.dashboard-container {
+  display: flex;
+  height: 100vh;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #3e66a3;
+  position: relative;
+  overflow: hidden; /* prevent scroll */
+}
+
+
+/* Sidebar styling */
+.sidebars1 {
+  width: 110px; /* slightly narrower */
+  padding: 10px 6px; /* tighter padding */
+  border-radius: 0 8px 8px 0; /* slightly smaller corners */
+}
+
+.sidebar-title {
+  font-size: 0.85rem;        /* smaller title */
+  margin-bottom: 10px;
+  padding-bottom: 4px;
+  text-align: center;
+}
+
+
+.sidebars1-button {
+  padding: 5px 8px;          /* tighter padding */
+  margin-bottom: 4px;
+  font-size: 0.68rem;        /* ⬅ smaller text */
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+
+.sidebars1-button:hover,
+.sidebars1-button.active {
+  background-color: #4ade80; /* green accent */
+  color: #111827;
+}
+
+
+
+
+
+/* Adjust logout button */
+.logout-button1 {
+  padding: 4px 8px;
+  font-size: 0.75rem;
+}
+
+
+.logout-button1:hover {
+  background-color: #7f1d1d;
+}
+
+/* Main content area */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 20px; /* tighter layout */
+  background-color: #c5ccd8;
+  overflow: hidden;
+  height: 100vh;
+  box-sizing: border-box;
+}
+
+
+
+
+/* Header */
+.header {
+  height: auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  gap: 20px;
+}
+
+
+.header-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1a45a1;
+  margin: 0;
+}
+
+
+.dashboard-icon {
+  margin-right: 10px;
+  font-size: 1.4rem;
+  color: #0f4ad6; /* or your theme color */
+  vertical-align: middle;
+}
+
+
+.content-area {
+  background-color:#e2d8d8f8;
+  padding: 20px 30px;  /* smaller padding */
+  border-radius: 16px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+  flex: 1;
+  width: 100%;
+  height: auto; /* allow content to grow naturally */
+  box-sizing: border-box;
+  overflow: auto;
+}
+
+
+.sidebar-item-wrapper {
+  position: relative;
+}
+
+/* Keep sidebar-button green if submenu is visible or hovered */
+.sidebar-button-active {
+  background-color: #4ade80;
+  color: #1655dd;
+}
+
+
+/* Submenu items */
+.submenu-item {
+  padding: 4px 10px; /* tighter padding */
+  font-size: 0.65rem; /* smaller text */
+  line-height: 1.1; /* tighter line height */
+  margin-bottom: 2px; /* smaller gap between submenu items */
+}
+
+/* Submenu hover color darker for feedback */
+.submenu-item:hover {
+  background-color:  #4ade80; /* slightly darker green */
+  color: #0f4ad6;
+}
+
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.modal-content {
+  background: #fff;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+  position: relative;
+  max-height: 95%;
+  overflow-y: auto;
+}
+
+
+
+.action-button1 {
+  background-color: transparent;
+  color: #333;
+  border: 1px solid #c2bfda;   /* Light border */
+  border-radius: 6px;
+  padding: 6px 4px;         /* Increased padding */
+  font-size: 14px;           /* Slightly larger text */
+  transition: color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+  cursor: pointer;
+  
+}
+
+.action-button1:hover {
+  color: #3301fa;            /* Change text color on hover */
+ border-color: #5537c4;
+}
+
+
+
+.sidebars-button {
+  padding: 8px 12px;
+  background-color: #3e66a3;
+  border: none;
+  color: white;
+  font-size: 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  margin: 6px 0;
+  transition: background-color 0.3s;
+}
+
+.sidebars-button:hover {
+  background-color: #2e518c;
+}
+
+
+/* Main Dashboard Button */
+.main-dashboard-btn {
+  padding: 6px 10px; /* smaller padding */
+  font-size: 0.8rem; /* slightly smaller text */
+  margin-top: 8px; /* reduce top margin */
+}
+
+
+.main-dashboard-btn:hover {
+  background-color: darkblue !important;
+  color: white !important;
+  border-color: darkblue !important;
+}

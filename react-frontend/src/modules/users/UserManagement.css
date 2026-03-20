@@ -1,0 +1,288 @@
+/* ===============================
+   User Container
+================================ */
+.user-container {
+  background: #eceaea;
+  padding: 1rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  font-family: Arial, sans-serif;
+  max-width: 1400px;
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+  overflow: hidden;
+}
+
+.user-container.small-frame {
+  padding: 10px;
+  max-width: 1000px;
+  margin: auto;
+  font-size: 13px;
+}
+
+/* ===============================
+   Heading
+================================ */
+.user-container .user-heading {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+/* ===============================
+   User Table Wrapper
+================================ */
+.user-container .user-table {
+  width: 100%;
+  display: grid;
+  border: 1px solid #bdbdbd;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-top: 15px;
+  font-size: 13px;
+}
+
+/* ===============================
+   Table Header
+================================ */
+.user-container .user-table-header {
+  display: grid;
+  grid-template-columns: 60px 200px 1fr 350px;
+  align-items: center;
+  background-color: #293552;
+  color: #ffffff;
+  font-weight: bold;
+  text-align: center;
+  border-bottom: 1px solid #bdbdbd;
+}
+
+.user-container .user-table-header div {
+  padding: 6px;
+  border-right: 1px solid #bdbdbd;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-container .user-table-header div:last-child {
+  border-right: none;
+}
+
+/* ===============================
+   Table Rows
+================================ */
+.user-container .user-table-row {
+  display: grid;
+  grid-template-columns: 60px 200px 1fr 350px;
+  align-items: center;
+  text-align: center;
+  border-bottom: 1px solid #d6d6d6;
+}
+
+/* Zebra striping */
+.user-container .user-table-row:nth-child(odd) {
+  background-color: #ffffff;
+}
+
+.user-container .user-table-row:nth-child(even) {
+  background-color: #f9fbfd;
+}
+
+.user-container .user-table-row:last-child {
+  border-bottom: none;
+}
+
+.user-container .user-table-row div {
+  padding: 6px;
+  border-right: 1px solid #d6d6d6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.user-container .user-table-row div:last-child {
+  border-right: none;
+}
+
+/* Hover */
+.user-container .user-table-row:hover {
+  background-color: #eef4ff;
+}
+
+/* ===============================
+   Action Buttons
+================================ */
+.user-container .user-action-buttons {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+}
+
+.user-container .user-btn {
+  padding: 5px 10px;
+  border: none;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* Edit */
+.user-container .user-btn-edit {
+  background-color: #007bff;
+  color: white;
+}
+
+.user-container .user-btn-edit:hover {
+  background-color: #0069d9;
+}
+
+/* Delete */
+.user-container .user-btn-delete {
+  background-color: #dc3545;
+  color: white;
+}
+
+.user-container .user-btn-delete:hover {
+  background-color: #b02a37;
+}
+
+/* Add */
+.user-container .user-btn-add {
+  background-color: #28a745;
+  color: white;
+  padding: 6px 14px;
+}
+
+.user-container .user-btn-add:hover {
+  background-color: #218838;
+}
+
+/* ===============================
+   Add User Button Container
+================================ */
+.user-container .add-user-button-container {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+/* ===============================
+   Inline Edit Form
+================================ */
+.user-container .edit-form.compact-form {
+  margin-top: 12px;
+  padding: 10px;
+  background: #fafafa;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  font-size: 13px;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.user-container .edit-form h4 {
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+/* Inputs */
+.user-container .edit-form input,
+.user-container .edit-form select {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+/* ===============================
+   Roles Checkboxes
+================================ */
+.user-container .roles-checkboxes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 6px;
+}
+
+.user-container .roles-checkboxes label {
+  font-size: 13px;
+  background: #f9f9f9;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  cursor: pointer;
+}
+
+.user-container .roles-checkboxes input {
+  margin-right: 4px;
+}
+
+/* ===============================
+   Toast Notification
+================================ */
+.user-container .popup-toast {
+  position: fixed;
+  top: 10px;
+  right: 20px;
+  background: #4caf50;
+  color: white;
+  padding: 8px 14px;
+  border-radius: 5px;
+  font-size: 13px;
+  z-index: 9999;
+  animation: userFadeOut 3s forwards;
+}
+
+@keyframes userFadeOut {
+  0% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+
+/* ===============================
+   Header Layout
+================================ */
+.user-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+}
+
+/* Center the main heading */
+.user-header .user-heading {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Right-side controls */
+.header-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Dropdown */
+.header-right select {
+  padding: 6px 10px;
+  font-size: 13px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  cursor: pointer;
+}
