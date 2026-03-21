@@ -174,20 +174,24 @@ def get_restaurant_items(db: Session = Depends(get_db)):
     return result
 
 
+
+
 @router.get(
     "/items/store-selling",
     response_model=List[restaurant_schemas.RestaurantMealStoreItem]
 )
 def get_restaurant_items_from_store(
+    search: str = Query(None, description="Search term for item name"),
     db: Session = Depends(get_db)
 ):
     """
     Fetch kitchen-related store items directly from StoreItem
     using their selling_price.
+    Supports optional search by name.
     Used for Guest Meal Orders.
     """
 
-    items = (
+    query = (
         db.query(
             store_models.StoreItem.id,
             store_models.StoreItem.name,
@@ -196,9 +200,13 @@ def get_restaurant_items_from_store(
         .filter(
             func.lower(store_models.StoreItem.item_type).in_(["kitchen", "meal", "food"])
         )
-        .order_by(store_models.StoreItem.name.asc())
-        .all()
     )
+
+    # Apply search if provided
+    if search:
+        query = query.filter(store_models.StoreItem.name.ilike(f"%{search}%"))
+
+    items = query.order_by(store_models.StoreItem.name.asc()).all()
 
     return items
 

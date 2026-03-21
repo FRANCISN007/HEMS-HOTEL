@@ -236,9 +236,17 @@ def list_store_items(category: str = None, db: Session = Depends(get_db),
 
 @router.get("/items/simple", response_model=List[store_schemas.StoreItemOut])
 def list_items_simple(
+    search: Optional[str] = Query(None, description="Search term for item name or category"),
+    limit: int = Query(100, description="Max number of items to return"),
     db: Session = Depends(get_db),
 ):
+    """
+    Returns a simple list of items with latest unit price.
+    Can optionally search by item name or category.
+    """
+
     try:
+        # Subquery to get the latest stock entry per item
         latest_entry_subquery = (
             db.query(
                 store_models.StoreStockEntry.item_id,
@@ -250,61 +258,7 @@ def list_items_simple(
 
         latest_entry = aliased(store_models.StoreStockEntry)
 
-        query = (
-            db.query(
-                store_models.StoreItem,
-                latest_entry.unit_price
-            )
-            .outerjoin(
-                latest_entry_subquery,
-                store_models.StoreItem.id == latest_entry_subquery.c.item_id
-            )
-            .outerjoin(
-                latest_entry,
-                latest_entry.id == latest_entry_subquery.c.latest_entry_id
-            )
-            .order_by(store_models.StoreItem.id.asc())
-        )
-
-        results = query.all()
-
-        items = []
-        for item, unit_price in results:
-            items.append(store_schemas.StoreItemOut(
-                id=item.id,
-                name=item.name,
-                unit=item.unit,
-                unit_price=unit_price or 0.0,
-                selling_price=item.selling_price or 0.0,  # ✅ FIX
-                category_id=item.category_id,
-                item_type=item.item_type   # 🔥 FIX
-            ))
-
-        return items
-
-    except Exception as e:
-        print("❌ Error in /items/simple:", e)
-        raise HTTPException(status_code=500, detail="Failed to fetch items.")
-
-
-@router.get("/items/simple-search", response_model=List[store_schemas.StoreItemOut])
-def list_items_simple(
-    search: Optional[str] = None,   # 🔍 NEW
-    limit: int = 50,                # 🔥 OPTIONAL SAFETY LIMIT
-    db: Session = Depends(get_db),
-):
-    try:
-        latest_entry_subquery = (
-            db.query(
-                store_models.StoreStockEntry.item_id,
-                func.max(store_models.StoreStockEntry.id).label("latest_entry_id")
-            )
-            .group_by(store_models.StoreStockEntry.item_id)
-            .subquery()
-        )
-
-        latest_entry = aliased(store_models.StoreStockEntry)
-
+        # Base query: item + latest unit price
         query = (
             db.query(
                 store_models.StoreItem,
@@ -320,10 +274,12 @@ def list_items_simple(
             )
         )
 
-        # 🔍 Optional search
+        # Optional search
         if search:
-            query = query.filter(
-                store_models.StoreItem.name.ilike(f"%{search}%")
+            search_term = f"%{search}%"
+            query = query.join(store_models.StoreItem.category, isouter=True).filter(
+                store_models.StoreItem.name.ilike(search_term) |
+                (store_models.StoreItem.category.has(store_models.StoreCategory.name.ilike(search_term)))
             )
 
         results = (
@@ -349,6 +305,83 @@ def list_items_simple(
     except Exception as e:
         print("❌ Error in /items/simple:", e)
         raise HTTPException(status_code=500, detail="Failed to fetch items.")
+    
+
+    
+
+@router.get("/items/simple-search", response_model=List[store_schemas.StoreItemOut])
+def list_items_simple_search(
+    search: Optional[str] = Query(None, description="Search term for item name or category"),
+    limit: int = Query(50, description="Max number of items to return"),
+    db: Session = Depends(get_db),
+):
+    """
+    🔍 Returns a list of items for frontend search/autocomplete.
+    Can search by item name or category name.
+    """
+
+    try:
+        # Subquery to get the latest stock entry for each item
+        latest_entry_subquery = (
+            db.query(
+                store_models.StoreStockEntry.item_id,
+                func.max(store_models.StoreStockEntry.id).label("latest_entry_id")
+            )
+            .group_by(store_models.StoreStockEntry.item_id)
+            .subquery()
+        )
+
+        latest_entry = aliased(store_models.StoreStockEntry)
+
+        # Base query: item + latest unit price
+        query = (
+            db.query(
+                store_models.StoreItem,
+                latest_entry.unit_price
+            )
+            .outerjoin(
+                latest_entry_subquery,
+                store_models.StoreItem.id == latest_entry_subquery.c.item_id
+            )
+            .outerjoin(
+                latest_entry,
+                latest_entry.id == latest_entry_subquery.c.latest_entry_id
+            )
+        )
+
+        # 🔍 Optional search: item name or category name
+        if search:
+            search_term = f"%{search}%"
+            query = query.join(store_models.StoreItem.category, isouter=True).filter(
+                store_models.StoreItem.name.ilike(search_term) |
+                (store_models.StoreItem.category.has(store_models.StoreCategory.name.ilike(search_term)))
+            )
+
+        results = (
+            query
+            .order_by(store_models.StoreItem.name.asc())
+            .limit(limit)
+            .all()
+        )
+
+        # Prepare response
+        return [
+            store_schemas.StoreItemOut(
+                id=item.id,
+                name=item.name,
+                unit=item.unit,
+                unit_price=unit_price or 0.0,
+                selling_price=item.selling_price or 0.0,
+                category_id=item.category_id,
+                item_type=item.item_type
+            )
+            for item, unit_price in results
+        ]
+
+    except Exception as e:
+        print("❌ Error in /items/simple-search:", e)
+        raise HTTPException(status_code=500, detail="Failed to fetch items.")
+
 
 
 
@@ -1848,59 +1881,51 @@ def get_bar_stock_balance(
     bar_id: Optional[int] = Query(None, description="Filter by bar"),
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
+    search: Optional[str] = Query(None, description="Search by item name or category"),
     db: Session = Depends(get_db),
     current_user: user_schemas.UserDisplaySchema = Depends(role_required(["store", "bar"]))
 ):
     try:
         # =============================================================
-        # 1️⃣ ISSUED ITEMS (Store → Bar)
+        # 1️⃣ TOTAL RECEIVED (Store → Bar)
         # =============================================================
-        issued_query = (
+        received_query = (
             db.query(
                 store_models.StoreIssueItem.item_id,
                 store_models.StoreIssue.bar_id.label("bar_id"),
-                func.sum(store_models.StoreIssueItem.quantity).label("total_received"),
+                func.sum(store_models.StoreIssueItem.quantity).label("total_received")
             )
             .join(store_models.StoreIssue)
-            .join(store_models.StoreItem)
             .filter(store_models.StoreIssue.issue_to == "bar")
         )
 
         if item_id:
-            issued_query = issued_query.filter(store_models.StoreItem.id == item_id)
+            received_query = received_query.filter(store_models.StoreIssueItem.item_id == item_id)
         if bar_id:
-            issued_query = issued_query.filter(store_models.StoreIssue.bar_id == bar_id)
+            received_query = received_query.filter(store_models.StoreIssue.bar_id == bar_id)
         if start_date:
-            issued_query = issued_query.filter(store_models.StoreIssue.issue_date >= start_date)
+            received_query = received_query.filter(store_models.StoreIssue.issue_date >= start_date)
         if end_date:
-            issued_query = issued_query.filter(store_models.StoreIssue.issue_date <= end_date)
+            received_query = received_query.filter(store_models.StoreIssue.issue_date <= end_date)
 
-        issued_query = issued_query.group_by(
-            store_models.StoreIssueItem.item_id,
-            store_models.StoreIssue.bar_id,
-        )
-
-        issued_data = {
-            (row.item_id, row.bar_id): float(row.total_received or 0)
-            for row in issued_query.all()
-        }
+        received_query = received_query.group_by(store_models.StoreIssueItem.item_id, store_models.StoreIssue.bar_id)
+        received_data = {(row.item_id, row.bar_id): float(row.total_received or 0) for row in received_query.all()}
 
         # =============================================================
-        # 2️⃣ SOLD ITEMS (Bar Sales)
+        # 2️⃣ TOTAL SOLD (Bar Sales)
         # =============================================================
         sold_query = (
             db.query(
                 bar_models.BarInventory.item_id,
                 bar_models.BarSale.bar_id,
-                func.sum(bar_models.BarSaleItem.quantity).label("total_sold"),
+                func.sum(bar_models.BarSaleItem.quantity).label("total_sold")
             )
             .join(bar_models.BarSaleItem.bar_inventory)
             .join(bar_models.BarSaleItem.sale)
-            .join(store_models.StoreItem, bar_models.BarInventory.item_id == store_models.StoreItem.id)
         )
 
         if item_id:
-            sold_query = sold_query.filter(store_models.StoreItem.id == item_id)
+            sold_query = sold_query.filter(bar_models.BarInventory.item_id == item_id)
         if bar_id:
             sold_query = sold_query.filter(bar_models.BarSale.bar_id == bar_id)
         if start_date:
@@ -1908,28 +1933,18 @@ def get_bar_stock_balance(
         if end_date:
             sold_query = sold_query.filter(bar_models.BarSale.sale_date <= end_date)
 
-        sold_query = sold_query.group_by(
-            bar_models.BarInventory.item_id,
-            bar_models.BarSale.bar_id,
-        )
-
-        sold_data = {
-            (row.item_id, row.bar_id): float(row.total_sold or 0)
-            for row in sold_query.all()
-        }
+        sold_query = sold_query.group_by(bar_models.BarInventory.item_id, bar_models.BarSale.bar_id)
+        sold_data = {(row.item_id, row.bar_id): float(row.total_sold or 0) for row in sold_query.all()}
 
         # =============================================================
-        # 3️⃣ ADJUSTED ITEMS (Bar Inventory Adjustments)
+        # 3️⃣ TOTAL ADJUSTED (Inventory Adjustments)
         # =============================================================
         adjusted_query = (
             db.query(
                 bar_models.BarInventoryAdjustment.item_id,
                 bar_models.BarInventoryAdjustment.bar_id,
-                func.sum(bar_models.BarInventoryAdjustment.quantity_adjusted)
-                .label("total_adjusted"),
+                func.sum(bar_models.BarInventoryAdjustment.quantity_adjusted).label("total_adjusted")
             )
-            .join(store_models.StoreItem,
-                  bar_models.BarInventoryAdjustment.item_id == store_models.StoreItem.id)
         )
 
         if item_id:
@@ -1941,32 +1956,23 @@ def get_bar_stock_balance(
         if end_date:
             adjusted_query = adjusted_query.filter(bar_models.BarInventoryAdjustment.adjusted_at <= end_date)
 
-        adjusted_query = adjusted_query.group_by(
-            bar_models.BarInventoryAdjustment.item_id,
-            bar_models.BarInventoryAdjustment.bar_id,
-        )
-
-        adjusted_data = {
-            (row.item_id, row.bar_id): float(row.total_adjusted or 0)
-            for row in adjusted_query.all()
-        }
+        adjusted_query = adjusted_query.group_by(bar_models.BarInventoryAdjustment.item_id, bar_models.BarInventoryAdjustment.bar_id)
+        adjusted_data = {(row.item_id, row.bar_id): float(row.total_adjusted or 0) for row in adjusted_query.all()}
 
         # =============================================================
-        # 4️⃣ MERGE + CALCULATE BALANCE
+        # 4️⃣ MERGE + CALCULATE BALANCE + APPLY SEARCH
         # =============================================================
-        all_keys = set(issued_data.keys()) | set(sold_data.keys()) | set(adjusted_data.keys())
+        all_keys = set(received_data.keys()) | set(sold_data.keys()) | set(adjusted_data.keys())
         results = []
 
         for (i_id, b_id) in all_keys:
-
             if b_id is None:
                 continue
 
-            issued = issued_data.get((i_id, b_id), 0)
-            sold = sold_data.get((i_id, b_id), 0)
-            adjusted = adjusted_data.get((i_id, b_id), 0)
-
-            balance = issued - sold - adjusted
+            total_received = received_data.get((i_id, b_id), 0)
+            total_sold = sold_data.get((i_id, b_id), 0)
+            total_adjusted = adjusted_data.get((i_id, b_id), 0)
+            balance = total_received - total_sold - total_adjusted
 
             item = db.query(store_models.StoreItem).filter_by(id=i_id).first()
             if not item or item.item_type != "bar":
@@ -1974,18 +1980,23 @@ def get_bar_stock_balance(
 
             bar = db.query(bar_models.Bar).filter_by(id=b_id).first()
 
-            # Latest price
-            latest_entry = (
+            # Apply search filter
+            if search:
+                search_lower = search.lower()
+                if search_lower not in item.name.lower() and (
+                    not item.category or search_lower not in item.category.name.lower()
+                ):
+                    continue
+
+            # Latest unit price
+            latest_stock = (
                 db.query(store_models.StoreStockEntry)
                 .filter(store_models.StoreStockEntry.item_id == i_id)
-                .order_by(
-                    store_models.StoreStockEntry.purchase_date.desc(),
-                    store_models.StoreStockEntry.id.desc()
-                )
+                .order_by(store_models.StoreStockEntry.purchase_date.desc(), store_models.StoreStockEntry.id.desc())
                 .first()
             )
 
-            unit_price = float(latest_entry.unit_price) if latest_entry and latest_entry.unit_price else None
+            unit_price = float(latest_stock.unit_price) if latest_stock and latest_stock.unit_price else None
             balance_total_amount = round(balance * unit_price, 2) if unit_price else None
 
             results.append(
@@ -1997,9 +2008,9 @@ def get_bar_stock_balance(
                     category_name=item.category.name if item.category else "Uncategorized",
                     item_type=item.item_type,
                     unit=item.unit,
-                    total_received=issued,
-                    total_sold=sold,
-                    total_adjusted=adjusted,
+                    total_received=total_received,
+                    total_sold=total_sold,
+                    total_adjusted=total_adjusted,
                     balance=balance,
                     last_unit_price=unit_price,
                     balance_total_amount=balance_total_amount,
@@ -2023,21 +2034,34 @@ def get_bar_stock_balance(
 def get_kitchen_stock_balance(
     item_id: Optional[int] = Query(None),
     kitchen_id: Optional[int] = Query(None),
+    search: Optional[str] = Query(None),  # ✅ NEW (search by item name)
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
     db: Session = Depends(get_db),
     current_user: user_schemas.UserDisplaySchema = Depends(role_required(["store", "restaurant"]))
 ):
     try:
-        # Convert kitchen_id to int if required
-        if kitchen_id:
-            try:
-                kitchen_id = int(kitchen_id)
-            except ValueError:
-                raise HTTPException(400, "kitchen_id must be an integer")
+        # ============================================
+        # 🔍 GET FILTERED ITEM IDs (IMPORTANT STEP)
+        # ============================================
+        item_query = db.query(store_models.StoreItem.id)
+
+        if item_id:
+            item_query = item_query.filter(store_models.StoreItem.id == item_id)
+
+        if search:
+            item_query = item_query.filter(
+                store_models.StoreItem.name.ilike(f"%{search}%")
+            )
+
+        filtered_item_ids = [row.id for row in item_query.all()]
+
+        # If no items match search → return empty early
+        if search and not filtered_item_ids:
+            return []
 
         # ============================================
-        # 1️⃣ TOTAL ISSUED TO KITCHEN (Store → Kitchen)
+        # 1️⃣ TOTAL ISSUED (Store → Kitchen)
         # ============================================
         issued_query = (
             db.query(
@@ -2049,8 +2073,9 @@ def get_kitchen_stock_balance(
             .filter(store_models.StoreIssue.issue_to == "kitchen")
         )
 
-        if item_id:
-            issued_query = issued_query.filter(store_models.StoreIssueItem.item_id == item_id)
+        if filtered_item_ids:
+            issued_query = issued_query.filter(store_models.StoreIssueItem.item_id.in_(filtered_item_ids))
+
         if kitchen_id:
             issued_query = issued_query.filter(store_models.StoreIssue.kitchen_id == kitchen_id)
         if start_date:
@@ -2069,7 +2094,7 @@ def get_kitchen_stock_balance(
         }
 
         # ============================================
-        # 2️⃣ TOTAL USED BY KITCHEN (Meal Orders)
+        # 2️⃣ TOTAL USED (Meal Orders)
         # ============================================
         used_query = (
             db.query(
@@ -2083,8 +2108,11 @@ def get_kitchen_stock_balance(
             )
         )
 
-        if item_id:
-            used_query = used_query.filter(restaurant_models.MealOrderItem.store_item_id == item_id)
+        if filtered_item_ids:
+            used_query = used_query.filter(
+                restaurant_models.MealOrderItem.store_item_id.in_(filtered_item_ids)
+            )
+
         if kitchen_id:
             used_query = used_query.filter(restaurant_models.MealOrder.kitchen_id == kitchen_id)
         if start_date:
@@ -2103,7 +2131,7 @@ def get_kitchen_stock_balance(
         }
 
         # ============================================
-        # 3️⃣ TOTAL ADJUSTED (Kitchen Inventory Adjustments)
+        # 3️⃣ TOTAL ADJUSTED
         # ============================================
         adjusted_query = (
             db.query(
@@ -2113,8 +2141,11 @@ def get_kitchen_stock_balance(
             )
         )
 
-        if item_id:
-            adjusted_query = adjusted_query.filter(kitchen_models.KitchenInventoryAdjustment.item_id == item_id)
+        if filtered_item_ids:
+            adjusted_query = adjusted_query.filter(
+                kitchen_models.KitchenInventoryAdjustment.item_id.in_(filtered_item_ids)
+            )
+
         if kitchen_id:
             adjusted_query = adjusted_query.filter(kitchen_models.KitchenInventoryAdjustment.kitchen_id == kitchen_id)
         if start_date:
@@ -2133,7 +2164,7 @@ def get_kitchen_stock_balance(
         }
 
         # ============================================
-        # 4️⃣ MERGE + CALCULATE BALANCE
+        # 4️⃣ MERGE
         # ============================================
         all_keys = set(issued_data.keys()) | set(used_data.keys()) | set(adjusted_data.keys())
         results = []
@@ -2151,7 +2182,6 @@ def get_kitchen_stock_balance(
             if not item or not kitchen:
                 continue
 
-            # Fetch latest unit price
             latest_entry = (
                 db.query(store_models.StoreStockEntry)
                 .filter(store_models.StoreStockEntry.item_id == i_id)
@@ -2183,7 +2213,6 @@ def get_kitchen_stock_balance(
                 )
             )
 
-        # Sort for UI
         results.sort(key=lambda x: (x.kitchen_name.lower(), x.item_name.lower()))
         return results
 
@@ -2198,7 +2227,9 @@ def get_kitchen_stock_balance(
 @router.get("/balance-stock", response_model=list[store_schemas.StoreStockBalance])
 def get_store_balances(
     category_id: Optional[int] = Query(None),
-    item_type: Optional[str] = Query(None),   # ✔ NEW FILTER
+    item_type: Optional[str] = Query(None),
+    item_id: Optional[int] = Query(None),          # ✅ NEW (exact item filter)
+    search: Optional[str] = Query(None),           # ✅ NEW (name search)
     db: Session = Depends(get_db),
     current_user: user_schemas.UserDisplaySchema = Depends(role_required(["store"]))
 ):
@@ -2212,7 +2243,6 @@ def get_store_balances(
         .group_by(store_models.StoreInventoryAdjustment.item_id)
         .all()
     )
-
     adjustment_map = {row.item_id: float(row.total_adjusted) for row in adjustments_q}
 
     # 2) Issues from StoreIssueItem
@@ -2224,7 +2254,6 @@ def get_store_balances(
         .group_by(store_models.StoreIssueItem.item_id)
         .all()
     )
-
     issued_map = {row.item_id: float(row.total_issued) for row in issued_q}
 
     # 3) Restaurant sales also reduce stock
@@ -2252,7 +2281,7 @@ def get_store_balances(
             store_models.StoreItem.id.label("item_id"),
             store_models.StoreItem.name.label("item_name"),
             store_models.StoreItem.unit.label("unit"),
-            store_models.StoreItem.item_type.label("item_type"),  # ✔ FIXED
+            store_models.StoreItem.item_type.label("item_type"),
             store_models.StoreCategory.name.label("category_name"),
             func.coalesce(func.sum(store_models.StoreStockEntry.original_quantity), 0)
             .label("total_received"),
@@ -2265,29 +2294,40 @@ def get_store_balances(
             store_models.StoreCategory,
             store_models.StoreItem.category_id == store_models.StoreCategory.id
         )
-        .order_by(store_models.StoreItem.name.asc())
     )
 
-    # ✔ FILTER BY CATEGORY IF PROVIDED
+    # ================= FILTERS =================
+
     if category_id:
         query = query.filter(store_models.StoreItem.category_id == category_id)
 
-    # ✔ FILTER BY ITEM TYPE IF PROVIDED
     if item_type:
-        query = query.filter(func.lower(store_models.StoreItem.item_type) == item_type.lower())
+        query = query.filter(
+            func.lower(store_models.StoreItem.item_type) == item_type.lower()
+        )
 
+    # ✅ FILTER BY ITEM ID
+    if item_id:
+        query = query.filter(store_models.StoreItem.id == item_id)
 
+    # ✅ SEARCH BY ITEM NAME (case-insensitive)
+    if search:
+        query = query.filter(
+            store_models.StoreItem.name.ilike(f"%{search}%")
+        )
+
+    # ================= GROUPING =================
     query = query.group_by(
         store_models.StoreItem.id,
         store_models.StoreItem.name,
         store_models.StoreItem.unit,
         store_models.StoreItem.item_type,
         store_models.StoreCategory.name
-    )
+    ).order_by(store_models.StoreItem.name.asc())
 
     items_q = query.all()
 
-    # 5) Build response using schema
+    # ================= RESPONSE =================
     response = []
 
     for item in items_q:

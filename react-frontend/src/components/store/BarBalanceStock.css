@@ -1,11 +1,107 @@
+/* ================= CONTAINER ================= */
 .stock-balance-container {
-  padding: 20px;
+  padding: 6px; /* reduced */
 }
 
 .stock-balance-container h2 {
-  margin-bottom: 15px;
+  margin-bottom: 4px; /* tighter */
 }
 
+.stock-balance-header h2 {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 2px; /* reduced */
+}
+
+/* ================= HEADER ================= */
+.stock-balance-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px; /* tighter */
+  margin-bottom: 3px; /* reduced */
+}
+
+/* ================= FILTER WRAPPER (NEW) ================= */
+.filter-frame {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #ffffff;
+  padding: 2px 250px; /* tighter */
+  border-radius: 6px;
+  box-shadow: 0px 1px 4px rgba(0, 0, 0, 0.08);
+  flex-wrap: wrap;
+}
+
+/* ================= FILTER ROW ================= */
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 4px; /* tighter */
+}
+
+/* ================= GROUP ================= */
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 0px;
+}
+
+/* ================= LABEL ================= */
+.filter-group label {
+  width: 35px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #000000;
+}
+
+/* ================= INPUTS ================= */
+.filter-group select,
+.filter-group input {
+  min-width: 110px;
+  padding: 3px 6px; /* tighter */
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  font-size: 12px;
+  background: #fafafa;
+}
+
+/* Date inputs */
+.filter-row:nth-child(2) .filter-group input {
+  min-width: 120px;
+}
+
+/* Search wider */
+.filter-row.search-group input {
+  min-width: 150px;
+}
+
+/* Item dropdown */
+.filter-row.search-group select {
+  min-width: 130px;
+}
+
+/* Focus */
+.filter-group select:focus,
+.filter-group input:focus {
+  border-color: #007bff;
+  outline: none;
+  background: #fff;
+}
+
+/* ================= TOTAL (INSIDE SAME BLOCK FEEL) ================= */
+.total-stock {
+  display: flex;
+  gap: 10px;
+  font-size: 18px;
+  color: #2d572c;
+  background: #e6f4ea;
+  padding: 3px 6px;
+  border-radius: 4px;
+  align-self: flex-start;
+}
+
+/* ================= TABLE ================= */
 .stock-balance-container table {
   width: 100%;
   border-collapse: collapse;
@@ -15,22 +111,20 @@
 .stock-balance-container td {
   padding: 4px;
   border: 1px solid #ccc;
-  border-radius: px;
   text-align: left;
+  font-size: 14px;
 }
 
 .stock-balance-container th {
-  background-color: #293552; /* deep dark navy */
+  background-color: #293552;
   color: #ffffff;
   text-transform: uppercase;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.4px;
-  border: 1px solid #bdbdbd; /* consistent border with data cells */
-  padding: 7px;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
   text-align: center;
+  padding: 5px;
 }
-
 
 .even-row {
   background-color: #f9f9f9;
@@ -40,76 +134,34 @@
   background-color: #ffffff;
 }
 
+/* ================= MESSAGE ================= */
 .message {
   background-color: #e7f5e9;
   color: green;
-  padding: 8px;
-  margin-bottom: 10px;
+  padding: 5px;
+  margin-bottom: 6px;
   border-radius: 4px;
+  font-size: 12px;
 }
 
-.stock-balance-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 15px;
-}
+/* ================= RESPONSIVE ================= */
+@media (max-width: 768px) {
+  .filter-frame {
+    flex-direction: column;
+    align-items: stretch;
+  }
 
-.total-stock {
-  font-size: 16px;
-  color: #2d572c;
-  background: #e6f4ea;
-  padding: 5px 10px;
-  border-radius: 5px;
-}
+  .filter-row {
+    width: 100%;
+    justify-content: space-between;
+  }
 
+  .filter-group {
+    flex: 1;
+  }
 
-
-
-
-
-/* Filter container */
-.filter-frame {
-  display: flex;
-  align-items: center;
-  gap: 20px; /* more space between Category and Bar */
-  background: #ffffff;
-  padding: 8px 12px;
-  border-radius: 6px;
-  box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.1);
-  flex-wrap: wrap; /* allow wrapping on smaller screens */
-}
-
-/* Each filter group (label + select) */
-.filter-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* Label styling with fixed width */
-.filter-group label {
-  display: inline-block;
-  width: 70px;   /* ✅ fixed width so both align */
-  font-weight: 500;
-  font-size: 14px;
-  color: #333;
-  white-space: nowrap;
-}
-
-/* Select styling */
-.filter-group select {
-  flex: 1;
-  min-width: 150px;
-  padding: 5px 10px;
-  border-radius: 4px;
-  border: 1px solid #ccc;
-  font-size: 14px;
-  background: #fafafa;
-  transition: border 0.2s;
-}
-
-.filter-group select:focus {
-  border-color: #007bff;
-  outline: none;
+  .filter-group select,
+  .filter-group input {
+    width: 100%;
+  }
 }

@@ -249,10 +249,19 @@ def delete_bar_inventory(inventory_id: int, db: Session = Depends(get_db),
 
 
 
-@router.get("/items/simple", response_model=List[bar_schemas.BarSaleItemSummary])
-def get_bar_items(
+from fastapi import Query
+
+@router.get("/items/simple-search", response_model=List[bar_schemas.BarSaleItemSummary])
+def search_bar_items(
+    search: str = Query("", description="Search term for item name"),
+    limit: int = Query(50, description="Maximum number of results"),
     db: Session = Depends(get_db),
 ):
+    """
+    Search bar items by name (case-insensitive, partial match) with latest selling price.
+    """
+
+    # Subquery to get latest inventory per item
     subquery = (
         db.query(
             bar_models.BarInventory.item_id,
@@ -262,7 +271,8 @@ def get_bar_items(
         .subquery()
     )
 
-    items = (
+    # Main query: join store items with latest inventory
+    query = (
         db.query(
             store_models.StoreItem.id.label("item_id"),
             store_models.StoreItem.name.label("item_name"),
@@ -272,14 +282,21 @@ def get_bar_items(
         .outerjoin(subquery, subquery.c.item_id == store_models.StoreItem.id)
         .outerjoin(bar_models.BarInventory, bar_models.BarInventory.id == subquery.c.latest_inventory_id)
         .filter(store_models.StoreItem.item_type == "bar")
-        .all()
     )
 
+    # Apply search filter if provided
+    if search:
+        query = query.filter(store_models.StoreItem.name.ilike(f"%{search}%"))
+
+    # Limit results
+    items = query.limit(limit).all()
+
+    # Map to schema
     result = [
         bar_schemas.BarSaleItemSummary(
             item_id=item.item_id,
             item_name=item.item_name,
-            selling_price=item.selling_price or 0,  # default 0 if not set yet
+            selling_price=item.selling_price or 0,
             quantity=0,
             total_amount=0
         )
@@ -290,27 +307,52 @@ def get_bar_items(
 
 
 
-@router.get("/items/simplesellprice", response_model=List[bar_schemas.BarSaleItemSummary])
-def get_bar_items(db: Session = Depends(get_db)):
+from fastapi import Query
+
+@router.get(
+    "/items/simplesellprice",
+    response_model=List[bar_schemas.BarSaleItemSummary]
+)
+def get_bar_items(
+    search: str = Query("", description="Search term for item name"),
+    limit: int = Query(50, description="Maximum number of results"),
+    db: Session = Depends(get_db)
+):
     """
-    Return all bar items with their selling_price from store_items table.
+    Fetch bar items directly from StoreItem using selling_price,
+    with optional search filter.
     """
-    items = (
+
+    query = (
         db.query(
             store_models.StoreItem.id.label("item_id"),
             store_models.StoreItem.name.label("item_name"),
             store_models.StoreItem.item_type.label("item_type"),
-            store_models.StoreItem.selling_price.label("selling_price"),  # 🔹 Use StoreItem.selling_price
+            store_models.StoreItem.selling_price.label("selling_price"),
         )
         .filter(store_models.StoreItem.item_type == "bar")
+    )
+
+    # ✅ APPLY SEARCH (case-insensitive partial match)
+    if search:
+        query = query.filter(
+            store_models.StoreItem.name.ilike(f"%{search}%")
+        )
+
+    # ✅ ORDER + LIMIT
+    items = (
+        query
+        .order_by(store_models.StoreItem.name.asc())
+        .limit(limit)
         .all()
     )
 
+    # ✅ FORMAT RESPONSE
     result = [
         bar_schemas.BarSaleItemSummary(
             item_id=item.item_id,
             item_name=item.item_name,
-            selling_price=float(item.selling_price or 0),  # ensure numeric
+            selling_price=float(item.selling_price or 0),
             quantity=0,
             total_amount=0
         )
@@ -318,7 +360,6 @@ def get_bar_items(db: Session = Depends(get_db)):
     ]
 
     return result
-
 
 
 
