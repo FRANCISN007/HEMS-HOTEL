@@ -97,15 +97,15 @@ const KitchenBalanceStock = () => {
 
   /* ================= UI ================= */
   return (
-    <div className="stock-balance-container">
+    <div className="stock-balance-container2">
       <div className="stock-balance-header">
         <h2>👨‍🍳 Kitchen Stock Balance Report</h2>
 
-        <div className="filter-frame">
+        <div className="filter-frame2">
 
           {/* ROW 1 → KITCHEN */}
-          <div className="filter-row">
-            <div className="filter-group">
+          <div className="filter-row2">
+            <div className="filter-group2">
               <label>Kitchen:</label>
               <select
                 value={selectedKitchen}
@@ -122,8 +122,8 @@ const KitchenBalanceStock = () => {
           </div>
 
           {/* ROW 2 → DATE */}
-          <div className="filter-row">
-            <div className="filter-group">
+          <div className="filter-row2">
+            <div className="filter-group2">
               <label>Start:</label>
               <input
                 type="date"
@@ -132,7 +132,7 @@ const KitchenBalanceStock = () => {
               />
             </div>
 
-            <div className="filter-group">
+            <div className="filter-group2">
               <label>End:</label>
               <input
                 type="date"
@@ -143,8 +143,8 @@ const KitchenBalanceStock = () => {
           </div>
 
           {/* ROW 3 → SEARCH + ITEM */}
-          <div className="filter-row search-group">
-            <div className="filter-group">
+          <div className="filter-row2 search-group">
+            <div className="filter-group2">
               <label>Search:</label>
               <input
                 type="text"
@@ -157,7 +157,7 @@ const KitchenBalanceStock = () => {
               />
             </div>
 
-            <div className="filter-group">
+            <div className="filter-group2">
               <label>Item:</label>
               <select
                 value={selectedItemId}
@@ -178,7 +178,7 @@ const KitchenBalanceStock = () => {
 
         </div>
 
-        <div className="total-stock">
+        <div className="total-stock2">
           <div>
             Total Value: <strong>₦{totalStockAmount.toLocaleString()}</strong>
           </div>

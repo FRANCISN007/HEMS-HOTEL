@@ -25,7 +25,7 @@ from app.kitchen.schemas import IssueToKitchenItemDisplay, KitchenDisplaySimple,
 from app.store.models import StoreIssue, StoreIssueItem, StoreStockEntry, StoreCategory, StoreItem
 from app.vendor import models as vendor_models
 from app.store.models import StoreInventoryAdjustment
-from app.store.schemas import  StoreInventoryAdjustmentCreate, StoreItemDisplay
+from app.store.schemas import  StoreInventoryAdjustmentCreate, StoreItemDisplay, KitchenItemSimple
 
 from app.bar import models as bar_models
 from app.bar import schemas as bar_schemas
@@ -1081,19 +1081,89 @@ def update_kitchen_issue(
         issue_date=issue.issue_date
     )
 
+from sqlalchemy import func
+from fastapi import Query
+from typing import List
+
+@router.get("/store/kitchen-items/simple-search", response_model=List[KitchenItemSimple])
+def search_kitchen_items(
+    search: str = Query("", description="Search kitchen items"),
+    limit: int = Query(50, description="Max results"),
+    db: Session = Depends(get_db),
+):
+    """
+    Lightweight search for kitchen items (for autocomplete).
+    Returns only id, name, and latest selling price.
+    """
+
+    # 🔁 Subquery: get latest inventory per item (same pattern as bar)
+    subquery = (
+        db.query(
+            KitchenInventory.item_id,
+            func.max(KitchenInventory.id).label("latest_inventory_id")
+        )
+        .group_by(KitchenInventory.item_id)
+        .subquery()
+    )
+
+    # 🔗 Main query
+    query = (
+        db.query(
+            StoreItem.id.label("item_id"),
+            StoreItem.name.label("item_name"),
+            StoreItem.selling_price.label("selling_price"),
+        )
+        .outerjoin(subquery, subquery.c.item_id == StoreItem.id)
+        .outerjoin(KitchenInventory, KitchenInventory.id == subquery.c.latest_inventory_id)
+        .filter(StoreItem.item_type == "kitchen")
+    )
+
+    # 🔍 Search filter
+    if search:
+        query = query.filter(StoreItem.name.ilike(f"%{search}%"))
+
+    # ⚡ Limit results
+    items = query.order_by(StoreItem.name.asc()).limit(limit).all()
+
+    # 🧾 Format response
+    return [
+        KitchenItemSimple(
+            item_id=item.item_id,
+            item_name=item.item_name,
+            selling_price=item.selling_price or 0,
+        )
+        for item in items
+    ]
+
+
+
+
 
 
 @router.get("/store/kitchen-items", response_model=List[StoreItemDisplay])
-def list_kitchen_items(db: Session = Depends(get_db)):
+def list_kitchen_items(
+    search: str = Query("", description="Search kitchen items by name"),
+    limit: int = Query(50, description="Maximum number of results"),
+    db: Session = Depends(get_db)
+):
     """
-    List all store items that are kitchen items.
-    Filter directly by item_type='kitchen'.
+    List kitchen items with optional search filter.
     """
-    kitchen_items = db.query(StoreItem)\
-        .filter(StoreItem.item_type == "kitchen")\
-        .order_by(StoreItem.name.asc())\
-        .all()
+
+    query = db.query(StoreItem).filter(
+        StoreItem.item_type == "kitchen"
+    )
+
+    # 🔍 Apply search (case-insensitive, partial match)
+    if search:
+        query = query.filter(StoreItem.name.ilike(f"%{search}%"))
+
+    # 📊 Order + limit
+    kitchen_items = query.order_by(StoreItem.name.asc()).limit(limit).all()
+
     return kitchen_items
+
+
 
 @router.delete("/kitchen/{issue_id}", response_model=dict)
 def delete_kitchen_issue(

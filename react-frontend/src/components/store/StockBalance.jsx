@@ -90,12 +90,14 @@ const StockBalance = () => {
 
   /* ================= UI ================= */
   return (
-    <div className="stock-balance-container">
-      <div className="stock-balance-header">
-        <h2>📊 Stock Balance Report</h2>
+    <div className="stock-balance-container3">
+    <div className="stock-balance-header">
+      <h2>📊 Stock Balance Report</h2>
 
-        <div className="filter-frame">
-          {/* CATEGORY */}
+      <div className="filter-frame3">
+        {/* CATEGORY */}
+        <div className="filter-group3 category-filter">
+          <label>Category</label>
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
@@ -107,8 +109,11 @@ const StockBalance = () => {
               </option>
             ))}
           </select>
+        </div>
 
-          {/* ITEM TYPE */}
+        {/* ITEM TYPE */}
+        <div className="filter-group3 type-filter">
+          <label>Type</label>
           <select
             value={selectedItemType}
             onChange={(e) => setSelectedItemType(e.target.value)}
@@ -119,24 +124,30 @@ const StockBalance = () => {
             <option value="Bar">Bar</option>
             <option value="Restaurant">Restaurant</option>
           </select>
+        </div>
 
-          {/* 🔍 SEARCH INPUT */}
+        {/* SEARCH INPUT */}
+        <div className="filter-group3 search-filter">
+          <label>Search</label>
           <input
             type="text"
             placeholder="Search item..."
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
-              setSelectedItemId(""); // reset exact filter when typing
+              setSelectedItemId("");
             }}
           />
+        </div>
 
-          {/* 🎯 OPTIONAL ITEM DROPDOWN */}
+        {/* ITEM DROPDOWN */}
+        <div className="filter-group3 item-filter">
+          <label>Item</label>
           <select
             value={selectedItemId}
             onChange={(e) => {
               setSelectedItemId(e.target.value);
-              setSearch(""); // reset search when exact selected
+              setSearch("");
             }}
           >
             <option value="">All Items</option>
@@ -147,62 +158,64 @@ const StockBalance = () => {
             ))}
           </select>
         </div>
-
-        <div className="total-stock">
-          Total: <strong>₦{totalStockAmount.toLocaleString()}</strong>
-        </div>
       </div>
 
-      {message && <div className="message">{message}</div>}
-
-      {loading ? (
-        <p>Loading...</p>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Items</th>
-              <th>Unit</th>
-              <th>Category</th>
-              <th>Type</th>
-              <th>Received</th>
-              <th>Issued</th>
-              <th>Adjusted</th>
-              <th>Balance</th>
-              <th>Unit Price</th>
-              <th>Value</th>
-            </tr>
-          </thead>
-          <tbody>
-            {balances.map((item, index) => (
-              <tr
-                key={item.item_id}
-                className={index % 2 === 0 ? "even-row" : "odd-row"}
-              >
-                <td>{item.item_name}</td>
-                <td>{item.unit}</td>
-                <td>{item.category_name}</td>
-                <td>{item.item_type}</td>
-                <td>{item.total_received}</td>
-                <td>{item.total_issued}</td>
-                <td>{item.total_adjusted}</td>
-                <td>{item.balance}</td>
-                <td>
-                  {item.current_unit_price
-                    ? `₦${item.current_unit_price.toLocaleString()}`
-                    : "-"}
-                </td>
-                <td>
-                  {item.balance_total_amount
-                    ? `₦${item.balance_total_amount.toLocaleString()}`
-                    : "-"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <div className="total-stock3">
+        Total: <strong>₦{totalStockAmount.toLocaleString()}</strong>
+      </div>
     </div>
+
+    {message && <div className="message">{message}</div>}
+
+    {loading ? (
+      <p>Loading...</p>
+    ) : (
+      <table>
+        <thead>
+          <tr>
+            <th>Items</th>
+            <th>Unit</th>
+            <th>Category</th>
+            <th>Type</th>
+            <th>Received</th>
+            <th>Issued</th>
+            <th>Adjusted</th>
+            <th>Balance</th>
+            <th>Unit Price</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          {balances.map((item, index) => (
+            <tr
+              key={item.item_id}
+              className={index % 2 === 0 ? "even-row" : "odd-row"}
+            >
+              <td>{item.item_name}</td>
+              <td>{item.unit}</td>
+              <td>{item.category_name}</td>
+              <td>{item.item_type}</td>
+              <td>{item.total_received}</td>
+              <td>{item.total_issued}</td>
+              <td>{item.total_adjusted}</td>
+              <td>{item.balance}</td>
+              <td>
+                {item.current_unit_price
+                  ? `₦${item.current_unit_price.toLocaleString()}`
+                  : "-"}
+              </td>
+              <td>
+                {item.balance_total_amount
+                  ? `₦${item.balance_total_amount.toLocaleString()}`
+                  : "-"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+  </div>
+
   );
 };
 

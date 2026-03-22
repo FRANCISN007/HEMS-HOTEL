@@ -157,30 +157,55 @@ const CreatePurchase = () => {
       <h2>Add New Purchase</h2>
       <form onSubmit={handleSubmit} className="purchase-form">
         {/* Top Form */}
-        <div className="form-grid">
+        <div className="top-row">
           <div className="form-group">
             <label>Vendor</label>
-            <select value={vendorId} onChange={e => setVendorId(e.target.value)} required>
+            <select
+              value={vendorId}
+              onChange={(e) => setVendorId(e.target.value)}
+              required
+            >
               <option value="">Select Vendor</option>
-              {vendors.map(v => <option key={v.id} value={v.id}>{v.business_name || v.name}</option>)}
+              {vendors.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.business_name || v.name}
+                </option>
+              ))}
             </select>
           </div>
 
           <div className="form-group">
             <label>Purchase Date</label>
-            <input type="date" value={purchaseDate} onChange={e => setPurchaseDate(e.target.value)} required />
+            <input
+              type="date"
+              value={purchaseDate}
+              onChange={(e) => setPurchaseDate(e.target.value)}
+              required
+            />
           </div>
 
           <div className="form-group">
             <label>Invoice Number</label>
-            <input type="text" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} required />
-          </div>
-
-          <div className="form-group">
-            <label>Attach Invoice (optional)</label>
-            <input type="file" onChange={e => setAttachment(e.target.files[0])} />
+            <input
+              type="text"
+              value={invoiceNumber}
+              onChange={(e) => setInvoiceNumber(e.target.value)}
+              required
+            />
           </div>
         </div>
+
+        {/* Attachment (full width below) */}
+        <div className="attachment-row">
+          <div className="form-group full-width">
+            <label>Attach Invoice (optional)</label>
+            <input
+              type="file"
+              onChange={(e) => setAttachment(e.target.files[0])}
+            />
+          </div>
+        </div>
+
 
         {/* Item Table */}
         <div className="purchase-items-table">
@@ -233,7 +258,7 @@ const CreatePurchase = () => {
                 required
               />
 
-              <input type="number" value={row.total} readOnly />
+              <input type="number" className="total-cell" value={row.total} readOnly />
 
               <button type="button" className="remove-btn" onClick={() => removeRow(index)}>Remove</button>
             </div>

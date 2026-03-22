@@ -85,6 +85,16 @@ class StoreItemDisplay(BaseModel):
 
 
     
+# schemas.py
+
+class KitchenItemSimple(BaseModel):
+    item_id: int
+    item_name: str
+    selling_price: float
+
+    class Config:
+        from_attributes = True
+
 
 
 #class StoreItemDisplay(BaseModel):

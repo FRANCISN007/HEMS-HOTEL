@@ -92,15 +92,15 @@ const BarBalanceStock = () => {
   // RENDER
   // -----------------------------
   return (
-    <div className="stock-balance-container">
+    <div className="stock-balance-container1">
       <div className="stock-balance-header">
         <h2>📊 Bar Stock Balance Report</h2>
 
         {/* FILTERS */}
-        <div className="filter-frame">
+        <div className="filter-frame1">
           {/* Row 1: Bar + Dates */}
-          <div className="filter-row date-group">
-            <div className="filter-group">
+          <div className="filter-row date-group1">
+            <div className="filter-group1">
               <label>Bar:</label>
               <select value={selectedBar} onChange={(e) => setSelectedBar(e.target.value)}>
                 <option value="">All Bars</option>
@@ -112,12 +112,12 @@ const BarBalanceStock = () => {
               </select>
             </div>
 
-            <div className="filter-group">
+            <div className="filter-group1">
               <label>Start:</label>
               <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
             </div>
 
-            <div className="filter-group">
+            <div className="filter-group1">
               <label>End:</label>
               <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
             </div>
@@ -125,7 +125,7 @@ const BarBalanceStock = () => {
 
           {/* Row 2: Search + Item */}
           <div className="filter-row search-group">
-            <div className="filter-group">
+            <div className="filter-group1">
               <label>Search:</label>
               <input
                 type="text"
@@ -138,7 +138,7 @@ const BarBalanceStock = () => {
               />
             </div>
 
-            <div className="filter-group">
+            <div className="filter-group1">
               <label>Item:</label>
               <select
                 value={selectedItemId}
@@ -159,7 +159,7 @@ const BarBalanceStock = () => {
         </div>
 
         {/* TOTALS */}
-        <div className="total-stock">
+        <div className="total-stock1">
           <div>
             Total Stock Value: <strong>₦{totalStockAmount.toLocaleString()}</strong>
           </div>
