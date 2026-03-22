@@ -86,3 +86,16 @@ C:\Users\KLOUNGE\Desktop\WinPython\WPy64-310111\python-3.10.11.amd64>
 
 
 just as the location design, let work on the meal category on the path src/components/restaurant MealCategory.jsx and the css
+
+
+
+
+modify Tonasat 3
+
+ALTER TABLE restaurant_sale_payments
+ADD COLUMN payment_date TIMESTAMP NOT NULL DEFAULT NOW();
+
+
+ALTER TABLE restaurant_sale_payments
+ALTER COLUMN payment_date TYPE DATE USING payment_date::date;
+

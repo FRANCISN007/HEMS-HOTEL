@@ -3,6 +3,13 @@ from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, Date
 from sqlalchemy.orm import relationship
 from app.database import Base
 from datetime import datetime
+from sqlalchemy import Date
+
+from zoneinfo import ZoneInfo
+from datetime import datetime
+
+LAGOS_TZ = ZoneInfo("Africa/Lagos")
+
 
 
 
@@ -16,6 +23,9 @@ class RestaurantSalePayment(Base):
     payment_mode = Column(String, nullable=False)  # "cash", "POS", "transfer"
     bank = Column(String, nullable=True)  # ✅ NEW FIELD
     paid_by = Column(String, nullable=True)
+
+    payment_date = Column(Date, nullable=False)  # ✅ store only date
+
     created_at = Column(DateTime, default=datetime.utcnow)
     is_void = Column(Boolean, default=False)
 

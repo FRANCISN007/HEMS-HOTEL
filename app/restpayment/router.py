@@ -21,15 +21,25 @@ from app.restpayment.schemas import RestaurantSaleDisplay, RestaurantSalePayment
 from app.restpayment.schemas import RestaurantSaleWithPaymentsDisplay, UpdatePaymentSchema
 from app.restpayment.services import update_sale_status
 from fastapi import Path
+from app.restpayment import models as restpayment_models
+from app.restaurant import models as restaurant_models
+
+from sqlalchemy.orm import Session, joinedload
+from datetime import datetime, date
+from zoneinfo import ZoneInfo
 
 
 
 router = APIRouter()
 
+LAGOS_TZ = ZoneInfo("Africa/Lagos")
+
 # app/restpayment/routes.py
 
 
 
+
+from datetime import datetime, date
 
 @router.post("/sales/{sale_id}/payments", response_model=RestaurantSaleDisplay)
 def add_payment_to_sale(
@@ -38,10 +48,20 @@ def add_payment_to_sale(
     db: Session = Depends(get_db),
     current_user: user_schemas.UserDisplaySchema = Depends(role_required(["restaurant"]))
 ):
-    # Fetch the sale
-    sale = db.query(RestaurantSale).filter_by(id=sale_id).first()
+    # Fetch sale with payments eagerly loaded
+    sale = db.query(RestaurantSale)\
+        .options(joinedload(RestaurantSale.payments))\
+        .filter_by(id=sale_id)\
+        .first()
+
     if not sale:
         raise HTTPException(status_code=404, detail="Sale not found")
+
+    # Normalize payment date and block future dates using Lagos timezone
+    today_lagos = datetime.now(LAGOS_TZ).date()
+    payment_date = payment.payment_date
+    if payment_date > today_lagos:
+        raise HTTPException(status_code=400, detail="Payment date cannot be in the future")
 
     # Calculate current balance
     total_paid = sum(p.amount_paid for p in sale.payments if not p.is_void)
@@ -53,33 +73,40 @@ def add_payment_to_sale(
             detail=f"Payment exceeds outstanding balance. Balance left: {balance}"
         )
 
-    # Normalize bank value
+    # Normalize bank
     bank_value = str(payment.bank).strip() if payment.bank else None
     if bank_value and bank_value.upper() in ("0", "NONE", "NULL", "", "NO BANK"):
         bank_value = None
 
-    # Create the payment
+    # Create new payment
     new_payment = RestaurantSalePayment(
         sale_id=sale.id,
         amount_paid=payment.amount,
-        payment_mode=payment.payment_mode,
+        payment_mode=payment.payment_mode.upper(),
         bank=bank_value,
         paid_by=payment.paid_by,
+        payment_date=payment_date,  # user-entered/backdated date
         is_void=False,
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow()
     )
 
     db.add(new_payment)
-    db.flush()  # ✅ ensure payment is visible before updating sale status
+    db.flush()
 
-    # Update linked sale status
+    # Update sale status if needed
     update_sale_status(sale, db)
 
     db.commit()
     db.refresh(sale)
 
+    # Compute totals for frontend
+    sale.amount_paid = sum(p.amount_paid for p in sale.payments if not p.is_void)
+    sale.balance = (sale.total_amount or 0) - sale.amount_paid
+
     return sale
+
+
 
 
 @router.get("/sales/payments", response_model=dict)
@@ -91,22 +118,23 @@ def list_payments_with_items(
     db: Session = Depends(get_db),
     current_user: user_schemas.UserDisplaySchema = Depends(role_required(["restaurant"]))
 ):
-    query = db.query(RestaurantSalePayment).join(RestaurantSale)
+    query = db.query(restpayment_models.RestaurantSalePayment).join(restaurant_models.RestaurantSale)
 
+    # FILTERS
     if sale_id:
-        query = query.filter(RestaurantSale.id == sale_id)
+        query = query.filter(restaurant_models.RestaurantSale.id == sale_id)
     if start_date:
         query = query.filter(
-            RestaurantSalePayment.created_at >= datetime.combine(start_date, datetime.min.time())
+            restpayment_models.RestaurantSalePayment.payment_date >= datetime.combine(start_date, datetime.min.time())
         )
     if end_date:
         query = query.filter(
-            RestaurantSalePayment.created_at <= datetime.combine(end_date, datetime.max.time())
+            restpayment_models.RestaurantSalePayment.payment_date <= datetime.combine(end_date, datetime.max.time())
         )
     if location_id:
-        query = query.filter(RestaurantSale.location_id == location_id)
+        query = query.filter(restaurant_models.RestaurantSale.location_id == location_id)
 
-    payments = query.order_by(RestaurantSalePayment.created_at.desc()).all()
+    payments = query.order_by(restpayment_models.RestaurantSalePayment.payment_date.desc()).all()
 
     sales_map = {}
 
@@ -120,10 +148,10 @@ def list_payments_with_items(
 
         if sale.id not in sales_map:
             total_paid_for_sale = (
-                db.query(func.coalesce(func.sum(RestaurantSalePayment.amount_paid), 0))
+                db.query(func.coalesce(func.sum(restpayment_models.RestaurantSalePayment.amount_paid), 0))
                 .filter(
-                    RestaurantSalePayment.sale_id == sale.id,
-                    RestaurantSalePayment.is_void == False
+                    restpayment_models.RestaurantSalePayment.sale_id == sale.id,
+                    restpayment_models.RestaurantSalePayment.is_void == False
                 )
                 .scalar()
             )
@@ -146,7 +174,6 @@ def list_payments_with_items(
                 "status": status,
             }
 
-        # ADD BANK TO PAYMENT RESPONSE
         payment_dict = {
             "id": p.id,
             "sale_id": p.sale_id,
@@ -156,14 +183,15 @@ def list_payments_with_items(
             "paid_by": p.paid_by,
             "is_void": p.is_void,
             "created_at": p.created_at,
+            "payment_date": p.payment_date.isoformat() if p.payment_date else None,
             "balance": sales_map[sale.id]["balance"],
         }
 
         sales_map[sale.id]["payments"].append(payment_dict)
 
-    # ---------------------------------------------------
-    # BUILD SUMMARY (TOTALS + BANK CATEGORY BREAKDOWN)
-    # ---------------------------------------------------
+    # -------------------------
+    # BUILD SUMMARY
+    # -------------------------
     summary = {
         "total_sales": 0,
         "total_paid": 0,
@@ -187,9 +215,6 @@ def list_payments_with_items(
             mode = p["payment_mode"]
             bank = (p["bank"] or "").upper().strip()
 
-            # -----------------------------
-            # COUNT PAYMENT MODE TOTALS
-            # -----------------------------
             if mode == "CASH":
                 summary["total_cash"] += amount
             elif mode == "POS":
@@ -197,9 +222,6 @@ def list_payments_with_items(
             elif mode == "TRANSFER":
                 summary["total_transfer"] += amount
 
-            # -----------------------------
-            # BANK-WISE CATEGORIZATION
-            # -----------------------------
             if bank:
                 if bank not in summary["banks"]:
                     summary["banks"][bank] = {"pos": 0, "transfer": 0}
@@ -233,15 +255,12 @@ def update_payment(
     db: Session = Depends(get_db),
     current_user: user_schemas.UserDisplaySchema = Depends(role_required(["restaurant"]))
 ):
-    # Fetch the payment
     payment = db.query(RestaurantSalePayment).filter_by(id=payment_id).first()
     if not payment:
         raise HTTPException(status_code=404, detail="Payment not found")
 
-    # Track whether we made any changes
     updated = False
 
-    # Update fields if provided
     if payload.amount_paid is not None and payment.amount_paid != payload.amount_paid:
         payment.amount_paid = payload.amount_paid
         updated = True
@@ -262,12 +281,21 @@ def update_payment(
             payment.bank = bank_value
             updated = True
 
+    # ✅ NEW: PAYMENT DATE UPDATE
+    if payload.payment_date is not None and payment.payment_date != payload.payment_date:
+        if payload.payment_date > date.today():
+            raise HTTPException(
+                status_code=400,
+                detail="Payment date cannot be in the future"
+            )
+        payment.payment_date = payload.payment_date
+        updated = True
+
     if updated:
         payment.updated_at = datetime.utcnow()
         db.add(payment)
-        db.flush()  # ✅ ensure changes are visible to any subsequent queries
+        db.flush()
 
-        # Update linked sale status after flushing payment changes
         sale = db.query(RestaurantSale).filter_by(id=payment.sale_id).first()
         if sale:
             update_sale_status(sale, db)
@@ -276,6 +304,7 @@ def update_payment(
 
     db.refresh(payment)
     return payment
+
 
 
 

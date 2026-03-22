@@ -28,6 +28,11 @@ const BarPayment = () => {
     return <div className="unauthorized">🚫 Access Denied</div>;
   }
 
+
+  const [paymentDate, setPaymentDate] = useState(
+    new Date().toISOString().split("T")[0] // default today
+  );
+
   // ================= FORMATTERS =================
   const formatAmount = (val) =>
     `₦${Number(val || 0).toLocaleString("en-NG")}`;
@@ -107,6 +112,7 @@ const BarPayment = () => {
         payment_method: paymentMethod,
         bank: paymentMethod === "cash" ? null : bankId,
         note,
+        date_paid: paymentDate, // ✅ must match backend schema
       });
 
       setMessage("✅ Payment successful");
@@ -118,6 +124,7 @@ const BarPayment = () => {
       setPaymentMethod("");
       setBankId("");
       setNote("");
+      setPaymentDate(new Date().toISOString().split("T")[0]); // reset to today
 
       // Refresh sales
       const res = await axiosWithAuth().get(
@@ -204,6 +211,16 @@ const BarPayment = () => {
               <p><strong>Paid:</strong> {formatAmount(selectedSale.amount_paid)}</p>
               <p><strong>Balance:</strong> {formatAmount(selectedSale.balance_due)}</p>
             </div>
+
+            <label>Payment Date</label>
+              <input
+                type="date"
+                value={paymentDate}
+                max={new Date().toISOString().split("T")[0]} // ❌ cannot go future
+                onChange={(e) => setPaymentDate(e.target.value)}
+              />
+
+
 
             <form onSubmit={handlePayment}>
               <label>Amount Paying</label>

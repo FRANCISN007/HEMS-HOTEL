@@ -21,22 +21,40 @@ from app.bar import models as bar_models
 
 router = APIRouter()
 
+from datetime import date, datetime
+from fastapi import HTTPException
+
 @router.post("/", response_model=schemas.BarPaymentDisplay)
 def create_bar_payment(
     payment: schemas.BarPaymentCreate,
     db: Session = Depends(get_db),
     current_user: user_schemas.UserDisplaySchema = Depends(role_required(["bar"]))
 ):
+    # 🔹 Fetch the sale
     sale = db.query(BarSale).filter(BarSale.id == payment.bar_sale_id).first()
     if not sale:
         raise HTTPException(status_code=404, detail="Bar sale not found")
 
+    # 🔹 Determine payment date
+    payment_date = payment.date_paid or date.today()
+    if isinstance(payment_date, str):
+        try:
+            payment_date = datetime.fromisoformat(payment_date).date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid payment date format")
+
+    # 🔹 Prevent future date
+    if payment_date > date.today():
+        raise HTTPException(status_code=400, detail="Payment date cannot be in the future")
+
+    # 🔹 Create payment
     db_payment = models.BarPayment(
         bar_sale_id=payment.bar_sale_id,
         amount_paid=payment.amount_paid,
         payment_method=payment.payment_method,
-        bank=payment.bank,       # 👈 NEW
+        bank=payment.bank,       # can be None for cash
         note=payment.note,
+        date_paid=payment_date,  # ✅ save validated date
         created_by=current_user.username,
         status="active"
     )
@@ -44,15 +62,16 @@ def create_bar_payment(
     db.commit()
     db.refresh(db_payment)
 
+    # 🔹 Recalculate totals
     total_paid = (
         db.query(func.coalesce(func.sum(models.BarPayment.amount_paid), 0))
         .filter(models.BarPayment.bar_sale_id == payment.bar_sale_id)
         .filter(models.BarPayment.status == "active")
         .scalar()
     )
-
     balance_due = float(sale.total_amount) - float(total_paid)
 
+    # 🔹 Determine status
     if total_paid == 0:
         status = "unpaid"
     elif total_paid < sale.total_amount:
@@ -67,12 +86,13 @@ def create_bar_payment(
         "amount_paid": float(db_payment.amount_paid),
         "balance_due": float(balance_due),
         "payment_method": db_payment.payment_method,
-        "bank": db_payment.bank,         # 👈 NEW
+        "bank": db_payment.bank,
         "note": db_payment.note,
         "date_paid": db_payment.date_paid,
         "created_by": db_payment.created_by,
         "status": status,
     }
+
 
 
 
@@ -88,37 +108,38 @@ def list_bar_payments(
 
     # Filter by bar
     if bar_id:
-        query = query.join(BarSale).filter(BarSale.bar_id == bar_id)
+        query = query.join(models.BarSale).filter(models.BarSale.bar_id == bar_id)
 
     # If only start_date is provided → default end_date = today
     if start_date and not end_date:
         end_date = date.today()
 
-    # Date filters
+    # ✅ Use func.date to compare date part only
     if start_date:
-        query = query.filter(models.BarPayment.date_paid >= start_date)
+        query = query.filter(func.date(models.BarPayment.date_paid) >= start_date)
     if end_date:
-        query = query.filter(models.BarPayment.date_paid < end_date + timedelta(days=1))
+        query = query.filter(func.date(models.BarPayment.date_paid) <= end_date)
 
     payments = query.all()
 
     response = []
-
-    # Main Summary
     total_sales = 0
     total_paid_all = 0
     total_due_all = 0
     total_cash = 0
     total_pos = 0
     total_transfer = 0
-
     processed_sales = set()
-
-    # NEW BANK SUMMARY
     bank_summary = {}
 
+    # Preload all sales to avoid repeated queries
+    sale_ids = {p.bar_sale_id for p in payments}
+    sales_map = {
+        s.id: s for s in db.query(bar_models.BarSale).filter(bar_models.BarSale.id.in_(sale_ids)).all()
+    }
+
     for p in payments:
-        sale = db.query(BarSale).filter(BarSale.id == p.bar_sale_id).first()
+        sale = sales_map.get(p.bar_sale_id)
         if not sale:
             continue
 
@@ -145,7 +166,7 @@ def list_bar_payments(
             amt = float(p.amount_paid)
             total_paid_all += amt
 
-            method = p.payment_method.lower()
+            method = p.payment_method.lower() if p.payment_method else ""
 
             if method == "cash":
                 total_cash += amt
@@ -154,21 +175,18 @@ def list_bar_payments(
             elif method == "transfer":
                 total_transfer += amt
 
-            # BANK CATEGORY SUMMARY
-            bank = (p.bank or "").strip().upper()  # remove default NO BANK
-            if not bank:
-                continue  # skip if bank is empty
+            # BANK CATEGORY SUMMARY (skip empty banks)
+            bank = (p.bank or "").strip().upper()
+            if bank:
+                if bank not in bank_summary:
+                    bank_summary[bank] = {"pos": 0, "transfer": 0}
 
-            if bank not in bank_summary:
-                bank_summary[bank] = {"pos": 0, "transfer": 0}
+                if method in ["pos", "card"]:
+                    bank_summary[bank]["pos"] += amt
+                elif method == "transfer":
+                    bank_summary[bank]["transfer"] += amt
 
-            if method in ["pos", "card"]:
-                bank_summary[bank]["pos"] += amt
-            elif method == "transfer":
-                bank_summary[bank]["transfer"] += amt
-
-
-        # Payment-level status
+        # Determine payment-level status
         if total_paid_for_sale == 0:
             sale_status = "unpaid"
         elif total_paid_for_sale < sale.total_amount:
@@ -195,8 +213,6 @@ def list_bar_payments(
 
     return {
         "payments": response,
-
-        # MAIN SUMMARY FIRST
         "summary": {
             "total_sales": total_sales,
             "total_paid": total_paid_all,
@@ -204,17 +220,15 @@ def list_bar_payments(
             "total_cash": total_cash,
             "total_pos": total_pos,
             "total_transfer": total_transfer,
-
-            # BANK SUMMARY INCLUDED HERE
             "banks": bank_summary
         },
-
         "filters": {
             "bar_id": bar_id,
             "start_date": start_date,
             "end_date": end_date,
         }
     }
+
 
 
 from fastapi import Query
