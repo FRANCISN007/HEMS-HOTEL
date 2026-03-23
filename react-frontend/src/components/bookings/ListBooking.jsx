@@ -9,6 +9,23 @@ import getBaseUrl from "../../api/config";
 const API_BASE_URL = getBaseUrl();
 
 
+const DEFAULT_VISIBLE_COLUMNS = [
+  "id",
+  "room_number",
+  "guest_name",
+  "number_of_days",
+  "booking_type",
+  "phone_number",
+  "booking_date",
+  "status",
+  "payment_status",
+  "booking_cost",
+  "created_by",
+  "actions",
+];
+
+
+
 const ALL_COLUMNS = [
   { key: "id", label: "ID" },
   { key: "room_number", label: "Room" },
@@ -73,9 +90,18 @@ const ListBooking = () => {
 
   const getInitialVisibleColumns = () => {
     const saved = localStorage.getItem("visibleColumns");
+
     if (saved) return JSON.parse(saved);
-    return ALL_COLUMNS.reduce((acc, col) => ({ ...acc, [col.key]: true }), {});
+
+    // Build default visibility map
+    const defaultMap = {};
+    ALL_COLUMNS.forEach((col) => {
+      defaultMap[col.key] = DEFAULT_VISIBLE_COLUMNS.includes(col.key);
+    });
+
+    return defaultMap;
   };
+
 
   const [visibleColumns, setVisibleColumns] = useState(getInitialVisibleColumns);
 
@@ -180,7 +206,7 @@ const ListBooking = () => {
               className="column-toggle-button"
               onClick={() => setShowColumnMenu(!showColumnMenu)}
             >
-              🛠️ Select Columns
+              🛠️ Add Columns
             </button>
 
             {showColumnMenu && (

@@ -12,7 +12,7 @@ from app.users.permissions import role_required  # 👈 permission helper
 from app.rooms import models as room_models  # Import room models
 from app.bookings import schemas, models as  booking_models
 from app.payments import models as payment_models
-from app.bookings.schemas import BookingOut
+from app.bookings.schemas import BookingOut, BookingSummaryReport
 from app.users import schemas as user_schemas
 from loguru import logger
 from datetime import datetime, time
@@ -369,6 +369,146 @@ def list_bookings(
         )
     
     
+@router.get("/summary-report", response_model=BookingSummaryReport)
+def get_summary_report(
+    start_date: date = Query(..., description="yyyy-mm-dd"),
+    end_date: date = Query(..., description="yyyy-mm-dd"),
+    db: Session = Depends(get_db),
+    current_user: user_schemas.UserDisplaySchema = Depends(role_required(["dashboard"]))
+):
+    from datetime import datetime
+    from sqlalchemy.sql import func
+
+    try:
+        # -------------------------
+        # VALIDATION
+        # -------------------------
+        if start_date > end_date:
+            raise HTTPException(
+                status_code=400,
+                detail="Start date cannot be later than end date"
+            )
+
+        start_datetime = datetime.combine(start_date, datetime.min.time())
+        end_datetime = datetime.combine(end_date, datetime.max.time())
+
+        # -------------------------
+        # 1. BOOKINGS
+        # -------------------------
+        bookings = db.query(booking_models.Booking).filter(
+            booking_models.Booking.booking_date.between(start_datetime, end_datetime),
+            booking_models.Booking.status != "cancelled"
+        ).order_by(
+            booking_models.Booking.booking_date.desc()
+        ).all()
+
+        booking_ids = [b.id for b in bookings]
+
+        formatted_bookings = [
+            {
+                "id": b.id,
+                "room_number": b.room_number,
+                "guest_name": b.guest_name,
+                "number_of_days": b.number_of_days,
+                "booking_type": b.booking_type,
+                "phone_number": b.phone_number,
+                "booking_date": b.booking_date,
+                "status": b.status,
+                "payment_status": b.payment_status,
+                "booking_cost": b.booking_cost,
+                "created_by": b.created_by,
+            }
+            for b in bookings
+        ]
+
+        total_booking_cost = sum(
+            b.booking_cost or 0 for b in bookings
+            if b.status in ["checked-in", "checked-out", "reserved"]
+        )
+
+        # -------------------------
+        # 2. PAYMENTS (FOR BOTH SUMMARY + BALANCE)
+        # -------------------------
+        payments = db.query(payment_models.Payment).filter(
+            payment_models.Payment.payment_date.between(start_datetime, end_datetime)
+        ).all()
+
+        total_cash = 0
+        total_pos = 0
+        total_transfer = 0
+
+        total_paid = 0
+        total_discount = 0
+
+        bank_totals = {}
+
+        for p in payments:
+            if p.status in ["voided", "cancelled"]:
+                continue
+
+            amount = p.amount_paid or 0
+            discount = p.discount_allowed or 0
+            method = (p.payment_method or "").lower()
+
+            total_paid += amount
+            total_discount += discount
+
+            # Payment method totals
+            if method in ["cash"]:
+                total_cash += amount
+            elif method in ["pos", "pos_card"]:
+                total_pos += amount
+            elif method in ["bank_transfer", "transfer"]:
+                total_transfer += amount
+
+            # Bank breakdown
+            if p.bank and method in ["pos", "pos_card", "bank_transfer", "transfer"]:
+                bank_name = p.bank.name
+
+                if bank_name not in bank_totals:
+                    bank_totals[bank_name] = {
+                        "pos": 0,
+                        "transfer": 0
+                    }
+
+                if method in ["pos", "pos_card"]:
+                    bank_totals[bank_name]["pos"] += amount
+                elif method in ["bank_transfer", "transfer"]:
+                    bank_totals[bank_name]["transfer"] += amount
+
+        # -------------------------
+        # 3. BALANCE DUE
+        # -------------------------
+        total_balance_due = total_booking_cost - (total_paid + total_discount)
+
+        # -------------------------
+        # FINAL RESPONSE
+        # -------------------------
+        return {
+            "total_bookings": len(formatted_bookings),
+            "total_booking_cost": total_booking_cost,
+            "total_amount_paid": total_paid,
+            "total_discount_allowed": total_discount,
+            "total_balance_due": total_balance_due,
+
+            "bookings": formatted_bookings,
+
+            "payment_summary": {
+                "cash": total_cash,
+                "pos": total_pos,
+                "transfer": total_transfer,
+                "total": total_cash + total_pos + total_transfer,
+            },
+
+            "bank_breakdown": bank_totals
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
 
 @router.get("/search-guest/")
 def search_guest(guest_name: str = Query(...), 

@@ -102,3 +102,36 @@ class BookingOut(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+
+class BookingSummaryItem(BaseModel):
+    id: int
+    room_number: str
+    guest_name: str
+    number_of_days: Optional[int]
+    booking_type: str
+    phone_number: str
+    booking_date: datetime
+    status: str
+    payment_status: str
+    booking_cost: Optional[float]
+    created_by: Optional[str]
+
+    class Config:
+        from_attributes = True
+
+
+
+class BookingSummaryReport(BaseModel):
+    total_bookings: int
+    total_booking_cost: float
+
+    total_amount_paid: float
+    total_discount_allowed: float
+    total_balance_due: float
+
+    bookings: list[BookingSummaryItem]
+
+    payment_summary: dict
+    bank_breakdown: dict
