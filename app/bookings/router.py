@@ -377,7 +377,6 @@ def get_summary_report(
     current_user: user_schemas.UserDisplaySchema = Depends(role_required(["dashboard"]))
 ):
     from datetime import datetime
-    from sqlalchemy.sql import func
 
     try:
         # -------------------------
@@ -404,8 +403,41 @@ def get_summary_report(
 
         booking_ids = [b.id for b in bookings]
 
-        formatted_bookings = [
-            {
+        # -------------------------
+        # 2. FETCH LATEST PAYMENTS PER BOOKING
+        # -------------------------
+        payments = db.query(payment_models.Payment).filter(
+            payment_models.Payment.booking_id.in_(booking_ids),
+            ~payment_models.Payment.status.in_(["voided", "cancelled"])
+        ).order_by(payment_models.Payment.id.desc()).all()
+
+        payments_by_booking = {}
+        for p in payments:
+            if p.booking_id not in payments_by_booking:
+                payments_by_booking[p.booking_id] = p  # latest payment only
+
+        # -------------------------
+        # 3. FORMAT BOOKINGS (UPDATED)
+        # -------------------------
+        formatted_bookings = []
+
+        for b in bookings:
+            payment = payments_by_booking.get(b.id)
+
+            # normalize method (optional but clean)
+            method_map = {
+                "pos_card": "POS",
+                "bank_transfer": "Transfer",
+                "transfer": "Transfer",
+                "cash": "Cash"
+            }
+
+            raw_method = (payment.payment_method.lower() if payment and payment.payment_method else "")
+            mode_of_payment = method_map.get(raw_method, raw_method.upper()) if payment else "N/A"
+
+            bank_name = payment.bank.name if payment and payment.bank else "N/A"
+
+            formatted_bookings.append({
                 "id": b.id,
                 "room_number": b.room_number,
                 "guest_name": b.guest_name,
@@ -413,36 +445,41 @@ def get_summary_report(
                 "booking_type": b.booking_type,
                 "phone_number": b.phone_number,
                 "booking_date": b.booking_date,
-                "status": b.status,
-                "payment_status": b.payment_status,
+
+                # ✅ NEW FIELDS
+                "mode_of_payment": mode_of_payment,
+                "bank": bank_name,
+
                 "booking_cost": b.booking_cost,
                 "created_by": b.created_by,
-            }
-            for b in bookings
-        ]
+                # ✅ Add these fields:
+                "amount_paid": payment.amount_paid if payment else 0,
+                "discount_allowed": payment.discount_allowed if payment else 0,
+            })
 
+        # -------------------------
+        # 4. TOTAL BOOKING COST
+        # -------------------------
         total_booking_cost = sum(
             b.booking_cost or 0 for b in bookings
             if b.status in ["checked-in", "checked-out", "reserved"]
         )
 
         # -------------------------
-        # 2. PAYMENTS (FOR BOTH SUMMARY + BALANCE)
+        # 5. PAYMENTS SUMMARY
         # -------------------------
-        payments = db.query(payment_models.Payment).filter(
+        payments_all = db.query(payment_models.Payment).filter(
             payment_models.Payment.payment_date.between(start_datetime, end_datetime)
         ).all()
 
         total_cash = 0
         total_pos = 0
         total_transfer = 0
-
         total_paid = 0
         total_discount = 0
-
         bank_totals = {}
 
-        for p in payments:
+        for p in payments_all:
             if p.status in ["voided", "cancelled"]:
                 continue
 
@@ -454,7 +491,7 @@ def get_summary_report(
             total_discount += discount
 
             # Payment method totals
-            if method in ["cash"]:
+            if method == "cash":
                 total_cash += amount
             elif method in ["pos", "pos_card"]:
                 total_pos += amount
@@ -477,7 +514,7 @@ def get_summary_report(
                     bank_totals[bank_name]["transfer"] += amount
 
         # -------------------------
-        # 3. BALANCE DUE
+        # 6. BALANCE DUE
         # -------------------------
         total_balance_due = total_booking_cost - (total_paid + total_discount)
 

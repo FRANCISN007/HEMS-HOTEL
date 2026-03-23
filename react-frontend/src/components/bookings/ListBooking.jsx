@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+
+import React, { useState, useEffect } from "react";
+
 import "./ListBooking.css";
 import ViewForm from "./ViewForm";
 import UpdateForm from "./UpdateForm";
@@ -53,8 +55,6 @@ const ListBooking = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
   const [guestName, setGuestName] = useState("");
   const [roomNumber, setRoomNumber] = useState("");
   const [hasFiltered, setHasFiltered] = useState(false);
@@ -64,7 +64,16 @@ const ListBooking = () => {
   const [bookingToUpdate, setBookingToUpdate] = useState(null);
   const [showColumnMenu, setShowColumnMenu] = useState(false);
   const [paymentBooking, setPaymentBooking] = useState(null);
-  const [status, setStatus] = useState("none");
+
+  const [status, setStatus] = useState("All");
+
+
+
+  const today = new Date().toISOString().split("T")[0];
+
+  const [startDate, setStartDate] = useState(today);
+  const [endDate, setEndDate] = useState(today);
+
 
   
   const storedUser = JSON.parse(localStorage.getItem("user")) || {};
@@ -87,6 +96,11 @@ const ListBooking = () => {
     </div>
   );
 }
+
+  useEffect(() => {
+    fetchBookings();
+  }, []);
+
 
   const getInitialVisibleColumns = () => {
     const saved = localStorage.getItem("visibleColumns");
@@ -123,13 +137,20 @@ const ListBooking = () => {
       let url = `${API_BASE_URL}/bookings/list`;
       const params = {};
 
-      // 1. Status Filter (only if not "none")
+      // 1. Status Filter
       if (status && status !== "none") {
-         url = `${API_BASE_URL}/bookings/status`;
-        params.status = status;
+        url = `${API_BASE_URL}/bookings/status`;
+
+        // ✅ Only pass status if NOT "All"
+        if (status !== "All") {
+          params.status = status;
+        }
+
+        // Always apply date filter
         if (startDate) params.start_date = startDate;
         if (endDate) params.end_date = endDate;
       }
+
       // 2. Guest Name Filter (only when status is "none")
       else if (guestName) {
        url = `${API_BASE_URL}/bookings/search`;

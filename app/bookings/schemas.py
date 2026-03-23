@@ -108,14 +108,17 @@ class BookingOut(BaseModel):
 class BookingSummaryItem(BaseModel):
     id: int
     room_number: str
+    booking_cost: Optional[float]
     guest_name: str
     number_of_days: Optional[int]
     booking_type: str
     phone_number: str
     booking_date: datetime
-    status: str
-    payment_status: str
-    booking_cost: Optional[float]
+     # ✅ NEW FIELDS
+    mode_of_payment: str
+    bank: str
+    amount_paid: float = 0
+    
     created_by: Optional[str]
 
     class Config:

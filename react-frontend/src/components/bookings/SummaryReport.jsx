@@ -37,6 +37,8 @@ const SummaryReport = () => {
   };
 
   const handlePrint = () => {
+    if (!printRef.current) return;
+
     const content = printRef.current.innerHTML;
     const win = window.open("", "", "width=900,height=700");
     win.document.write(`
@@ -98,49 +100,53 @@ const SummaryReport = () => {
       {data && (
         <div ref={printRef}>
           {/* Table */}
-          <div className="summary-table-container">
+          <div className="summary-table-container" style={{ overflowX: "auto" }}>
             <table className="summary-table">
               <thead>
                 <tr>
                   <th>ID</th>
                   <th>Room</th>
+                  <th>Cost</th>
                   <th>Guest</th>
                   <th>Days</th>
                   <th>Type</th>
                   <th>Phone</th>
                   <th>Date</th>
-                  <th>Status</th>
-                  <th>Payment Status</th>
-                  <th>Cost</th>
+                  <th>Mode of Payment</th>
+                  <th>Bank</th>
+                  <th>Amount Paid</th>
                   <th>Created by</th>
-
                 </tr>
               </thead>
               <tbody>
-                {data.bookings.length > 0 ? (
-                  data.bookings.map((b) => (
+                {(data.bookings || []).length > 0 ? (
+                  (data.bookings || []).map((b) => (
                     <tr key={b.id}>
                       <td>{b.id}</td>
                       <td>{b.room_number}</td>
+                      <td>₦{formatAmount(b.booking_cost)}</td>
                       <td>{b.guest_name}</td>
                       <td>{b.number_of_days}</td>
                       <td>{b.booking_type}</td>
                       <td>{b.phone_number}</td>
                       <td>{new Date(b.booking_date).toLocaleString()}</td>
-                      <td>{b.status}</td>
-                      <td>{b.payment_status}</td>
-                      <td>₦{formatAmount(b.booking_cost)}</td>
+                      <td>{b.mode_of_payment}</td>
+                      <td>{b.bank}</td>
+                      <td>₦{formatAmount(b.amount_paid || 0)}</td>
                       <td>{b.created_by}</td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="10">No bookings found</td>
+                    <td colSpan="12">No bookings found</td>
                   </tr>
                 )}
                 <tr className="grand-total-row">
-                  <td colSpan="9">Total</td>
+                  <td colSpan="2">Total</td>
                   <td>₦{formatAmount(data.total_booking_cost)}</td>
+                  <td colSpan="7"></td>
+                  <td>₦{formatAmount(data.total_amount_paid)}</td>
+                  <td></td>
                 </tr>
               </tbody>
             </table>
@@ -150,19 +156,19 @@ const SummaryReport = () => {
           <div className="summary-grid">
             <div className="card"><span>Total Bookings</span><h3>{data.total_bookings}</h3></div>
             <div className="card"><span>Total Cost</span><h3>₦{formatAmount(data.total_booking_cost)}</h3></div>
-            <div className="card highlight"><span>Total Paid</span><h3>₦{formatAmount(data.payment_summary.total)}</h3></div>
+            <div className="card highlight"><span>Total Paid</span><h3>₦{formatAmount(data.total_amount_paid)}</h3></div>
             <div className="card"><span>Balance Due</span><h3>₦{formatAmount(data.total_balance_due)}</h3></div>
           </div>
 
-          {/* Payment Summary */}
+          {/* Payment Method Summary */}
           <div className="summary-grid">
-            <div className="card highlight"><span>Cash</span><h3>₦{formatAmount(data.payment_summary.cash)}</h3></div>
-            <div className="card"><span>POS</span><h3>₦{formatAmount(data.payment_summary.pos)}</h3></div>
-            <div className="card"><span>Transfer</span><h3>₦{formatAmount(data.payment_summary.transfer)}</h3></div>
+            <div className="card highlight"><span>Cash</span><h3>₦{formatAmount(data.payment_summary?.cash)}</h3></div>
+            <div className="card"><span>POS</span><h3>₦{formatAmount(data.payment_summary?.pos)}</h3></div>
+            <div className="card"><span>Transfer</span><h3>₦{formatAmount(data.payment_summary?.transfer)}</h3></div>
           </div>
 
           {/* Bank Breakdown */}
-          {Object.keys(data.bank_breakdown).length > 0 && (
+          {data.bank_breakdown && Object.keys(data.bank_breakdown).length > 0 && (
             <div className="bank-section">
               <h4>🏦 Bank Breakdown</h4>
               {Object.entries(data.bank_breakdown).map(([bank, val]) => (

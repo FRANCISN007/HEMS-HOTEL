@@ -104,3 +104,64 @@ font-weight: 700;
     padding: 0;
   }
 }
+
+
+/* Container for table with vertical scroll */
+.summary-table-container {
+  max-height: 500px; /* adjust as needed */
+  overflow-y: auto;
+  overflow-x: auto; /* keep horizontal scroll for wide tables */
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+/* Optional: style scrollbar for modern browsers */
+.summary-table-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.summary-table-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 6px;
+}
+
+.summary-table-container::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 6px;
+}
+
+.summary-table-container::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Table styling (you already have this, but make sure it inherits the container scroll) */
+.summary-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.summary-table th,
+.summary-table td {
+  border: 1px solid #000;
+  padding: 6px;
+  text-align: center;
+  font-size: 12px;
+}
+
+.summary-table th {
+  background: #f0f2f5;
+}
+
+.summary-table tbody tr:nth-child(odd) {
+  background: #f7f7f7;
+}
+
+.summary-table tbody tr:nth-child(even) {
+  background: #dcf1c8;
+}
+
+.grand-total-row {
+  font-weight: bold;
+  border-top: 2px solid #000;
+  background: #e0e0e0;
+}
